@@ -121,7 +121,8 @@ def register():
     if form.validate_on_submit():
         email = form.email.data
         password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
-        user = User(email=email, password=password, role='user')
+        role = 'admin' if email == 'direccioncomercial@privilegio.med.ec' else 'user'
+        user = User(email=email, password=password, role='role')
         db.session.add(user)
         db.session.commit()
         flash('Usuario registrado con éxito. Por favor, inicia sesión.', 'success')
