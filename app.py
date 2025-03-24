@@ -112,6 +112,9 @@ def generar_pdf(auditoria):
     return pdf_path
 
 # Rutas
+@app.route('/')
+def home():
+    return redirect('/login')
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     form = RegisterForm()
