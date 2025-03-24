@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, redirect, send_from_directory, flash, Response
+from flask import Flask, request, render_template, redirect, flash, send_from_directory, Response
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager, UserMixin, login_user, login_required, current_user, logout_user
@@ -18,7 +18,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'x7k9p!m2q$z')  # Valor por defecto para desarrollo
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///auditorias.db')  # PostgreSQL en producción
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['PDF_FOLDER'] = os.getenv('PDF_FOLDER', 'pdfs')  # Carpeta para PDFs
+app.config['PDF_FOLDER'] = os.getenv('PDF_FOLDER', '/tmp/pdfs')  # Carpeta para PDFs en Render
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
@@ -93,7 +93,7 @@ def auditar_solicitud(compania_paciente, examenes):
 def generar_pdf(auditoria):
     pdf_folder = app.config['PDF_FOLDER']
     if not os.path.exists(pdf_folder):
-        os.makedirs(pdf_folder)
+        os.makedirs(pdf_folder, exist_ok=True)  # Añadido exist_ok para evitar errores si ya existe
     pdf_path = os.path.join(pdf_folder, f"autorizacion_{auditoria.id}.pdf")
     c = canvas.Canvas(pdf_path, pagesize=letter)
     c.drawString(100, 750, "Autorización de Auditoría Médica")
@@ -115,6 +115,7 @@ def generar_pdf(auditoria):
 @app.route('/')
 def home():
     return redirect('/login')
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     form = RegisterForm()
@@ -122,7 +123,7 @@ def register():
         email = form.email.data
         password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
         role = 'admin' if email == 'direccioncomercial@privilegio.med.ec' else 'user'
-        user = User(email=email, password=password, role='role')
+        user = User(email=email, password=password, role=role)  # Corregido: 'role' en lugar de 'role'
         db.session.add(user)
         db.session.commit()
         flash('Usuario registrado con éxito. Por favor, inicia sesión.', 'success')
