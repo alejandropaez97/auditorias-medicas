@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Solicitar Auditoría{% endblock %}
+{% block content %}
+<h2>Solicitar Auditoría</h2>
+<form method="POST" class="needs-validation" novalidate>
+    {{ form.hidden_tag() }}
+    <div class="mb-3">
+        {{ form.paciente.label(class="form-label") }}
+        {{ form.paciente(class="form-control") }}
+        {% for error in form.paciente.errors %}
+            <div class="invalid-feedback">{{ error }}</div>
+        {% endfor %}
+    </div>
+    <div class="mb-3">
+        {{ form.cedula.label(class="form-label") }}
+        {{ form.cedula(class="form-control") }}
+        {% for error in form.cedula.errors %}
+            <div class="invalid-feedback">{{ error }}</div>
+        {% endfor %}
+    </div>
+    <div class="mb-3">
+        {{ form.compania.label(class="form-label") }}
+        {{ form.compania(class="form-control") }}
+        {% for error in form.compania.errors %}
+            <div class="invalid-feedback">{{ error }}</div>
+        {% endfor %}
+    </div>
+    <div class="mb-3">
+        {{ form.examenes.label(class="form-label") }}
+        {{ form.examenes(class="form-control", rows=3) }}
+        {% for error in form.examenes.errors %}
+            <div class="invalid-feedback">{{ error }}</div>
+        {% endfor %}
+    </div>
+    <div class="mb-3">
+        {{ form.centro_medico.label(class="form-label") }}
+        {{ form.centro_medico(class="form-control") }}
+        {% for error in form.centro_medico.errors %}
+            <div class="invalid-feedback">{{ error }}</div>
+        {% endfor %}
+    </div>
+    <div class="d-grid">
+        {{ form.submit(class="btn btn-primary") }}
+    </div>
+</form>
+{% endblock %}
