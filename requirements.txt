@@ -10,3 +10,4 @@ openpyxl
 openai
 gunicorn
 psycopg2-binary
+email_validator
