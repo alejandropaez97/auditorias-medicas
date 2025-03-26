@@ -11,14 +11,14 @@ from reportlab.pdfgen import canvas
 from openpyxl import Workbook
 from io import BytesIO
 import os
+from openai import OpenAI
 
 app = Flask(__name__)
 
-# Configuración desde variables de entorno
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'x7k9p!m2q$z')  # Valor por defecto para desarrollo
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///auditorias.db')  # PostgreSQL en producción
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'x7k9p!m2q$z')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///auditorias.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['PDF_FOLDER'] = os.getenv('PDF_FOLDER', '/tmp/pdfs')  # Carpeta para PDFs en Render
+app.config['PDF_FOLDER'] = os.getenv('PDF_FOLDER', '/tmp/pdfs')
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
@@ -27,7 +27,6 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# Modelos
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(150), unique=True, nullable=False)
@@ -41,11 +40,10 @@ class Auditoria(db.Model):
     compania_paciente = db.Column(db.String(150), nullable=False)
     examenes = db.Column(db.String(500), nullable=False)
     centro_medico = db.Column(db.String(150), nullable=False)
-    resultado = db.Column(db.String(500), nullable=False)
+    resultado = db.Column(db.String(2000), nullable=False)
     usuario_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     pdf_path = db.Column(db.String(500))
 
-# Formularios
 class RegisterForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email()])
     password = PasswordField('Contraseña', validators=[DataRequired(), Length(min=6)])
@@ -61,6 +59,7 @@ class SolicitudForm(FlaskForm):
     cedula = StringField('Cédula', validators=[DataRequired(), Length(min=6, max=20)])
     compania = StringField('Compañía del Paciente', validators=[DataRequired()])
     examenes = TextAreaField('Exámenes (separados por comas)', validators=[DataRequired()])
+    diagnosticos = TextAreaField('Diagnósticos (CIE10 - Descripción, uno por línea)', validators=[DataRequired()])
     centro_medico = StringField('Centro Médico', validators=[DataRequired()])
     submit = SubmitField('Enviar Solicitud')
 
@@ -68,27 +67,92 @@ class SolicitudForm(FlaskForm):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-def auditar_solicitud(compania_paciente, examenes):
-    examenes_lista = [e.strip().lower() for e in examenes.split(',')]
-    resultados = []
-    reglas = {
-        "Empresa XYZ": {"rayos x": True, "resonancia": False},
-        "Compañía ABC": {"rayos x": False, "resonancia": True}
-    }
+def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnosticos, centro_medico):
+    client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
     
-    if compania_paciente not in reglas:
-        return f"Denegado: Compañía del paciente no reconocida por PRIMEPRE S.A."
+    prompt = f"""
+    Eres un asistente de auditoría médica para Privilegio Medicina Prepagada. Tu tarea es analizar solicitudes de autorización de procedimientos médicos y responder con un formato específico, evaluando la cobertura según criterios estrictos de pertinencia médica. Sigue estas normas:
+
+    - Solo se cubren exámenes/procedimientos con relación directa al diagnóstico.
+    - No se cubren exámenes por descarte, control o rutina.
+    - Si un examen depende del resultado de otro, indícalo como "vía reembolso".
+    - Cobertura estándar: 80%, salvo excepciones (e.g., maternidad 100%).
+    - Terapias físicas: máximo $20 o $35 por sesión según contrato.
+
+    Responde siempre en este formato:
+    ```
+    Autorización de Procedimientos
+    Buenos días estimados,
+    Reciban un cordial saludo de quienes conformamos PRIVILEGIO.
+    Mediante el presente nos permitimos enviar la auditoría médica del paciente {paciente.upper()}, perteneciente a {compania_paciente.upper()}.
+
+    Paciente:
+    Nombre: {paciente.upper()}
+    Cédula: {cedula}
+
+    Pedido:
+    {examenes.replace(',', '\n')}
+
+    Diagnósticos:
+    {diagnosticos}
+
+    Médico Tratante: Médico de Turno
+    Fecha Cita: A coordinar con paciente
+    Hora Cita: A coordinar con paciente
+    Centro Médico: {centro_medico}
+    Cobertura
+    80%
+
+    Procedimientos Autorizados:
+    [Lista de exámenes cubiertos]
+
+    Procedimientos No Autorizados:
+    [Lista de exámenes no cubiertos]
+
+    Motivo:
+    [Explicación de por qué no se cubren]
+
+    Nota:
+    El paciente coordinará los procedimientos autorizados con la central médica. Por favor, asistir con cédula de identidad y pedido médico original.
+
+    Exclusiones Generales:
+    PRIVILEGIO MEDICINA PREPAGADA S.A. no cubre IVA, kit de ingreso, insumos de papelería ni cualquier elemento no médico.
+
+    Quedo a la espera de sus comentarios. Gracias de antemano.
+    Saludos cordiales,
+    Privilegio Medicina Prepagada
+    PRIMEPRE S.A.
+    DIR: Juan León Mera N21-291 y Jerónimo Carrión, Edificio Sevilla piso 7
+    E-MAIL: direccionmedica@privilegio.med.ec
+    WEB: www.privilegio.med.ec
+    QUITO – ECUADOR
+    ```
+
+    Ejemplo de reglas específicas:
+    - Diagnóstico E11 (Diabetes): Cubre Glucosa en ayunas, Hemoglobina glicosilada, Microalbuminuria, Creatinina.
+    - Diagnóstico N18 (Insuficiencia Renal): Cubre Creatinina, Urea, Microalbuminuria, Electrolitos.
+    - No cubre PSA, CA19-9, Electroforesis de Proteínas si no hay diagnóstico relacionado con cáncer.
+
+    Ahora, audita esta solicitud:
+    Paciente: {paciente}
+    Cédula: {cedula}
+    Compañía: {compania_paciente}
+    Exámenes: {examenes}
+    Diagnósticos: {diagnosticos}
+    Centro Médico: {centro_medico}
+    """
     
-    for examen in examenes_lista:
-        if examen in reglas[compania_paciente]:
-            if reglas[compania_paciente][examen]:
-                resultados.append(f"Aprobado: {examen.capitalize()} cubierto por PRIMEPRE S.A. para un cliente de {compania_paciente}")
-            else:
-                resultados.append(f"Denegado: {examen.capitalize()} no cubierto por PRIMEPRE S.A. para un cliente de {compania_paciente}")
-        else:
-            resultados.append(f"Denegado: {examen.capitalize()} no reconocido por PRIMEPRE S.A. para un cliente de {compania_paciente}")
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "Eres un auditor médico experto."},
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=1000,
+        temperature=0.3
+    )
     
-    return "\n".join(resultados)
+    return response.choices[0].message.content.strip()
 
 def generar_pdf(auditoria):
     pdf_folder = app.config['PDF_FOLDER']
@@ -96,6 +160,7 @@ def generar_pdf(auditoria):
         os.makedirs(pdf_folder, exist_ok=True)
     pdf_path = os.path.join(pdf_folder, f"autorizacion_{auditoria.id}.pdf")
     c = canvas.Canvas(pdf_path, pagesize=letter)
+    
     lineas = auditoria.resultado.split('\n')
     y = 750
     for linea in lineas:
@@ -104,10 +169,10 @@ def generar_pdf(auditoria):
             y = 750
         c.drawString(50, y, linea)
         y -= 15
+    
     c.save()
     return pdf_path
 
-# Rutas
 @app.route('/')
 def home():
     return redirect('/login')
@@ -119,7 +184,7 @@ def register():
         email = form.email.data
         password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
         role = 'admin' if email == 'direccioncomercial@privilegio.med.ec' else 'user'
-        user = User(email=email, password=password, role=role)  # Corregido: 'role' en lugar de 'role'
+        user = User(email=email, password=password, role=role)
         db.session.add(user)
         db.session.commit()
         flash('Usuario registrado con éxito. Por favor, inicia sesión.', 'success')
@@ -154,8 +219,9 @@ def solicitar():
         cedula = form.cedula.data
         compania_paciente = form.compania.data
         examenes = form.examenes.data
+        diagnosticos = form.diagnosticos.data
         centro_medico = form.centro_medico.data
-        resultado = auditar_solicitud(compania_paciente, examenes)
+        resultado = auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnosticos, centro_medico)
         auditoria = Auditoria(
             paciente=paciente,
             cedula=cedula,
@@ -234,7 +300,6 @@ def logout():
     flash('Has cerrado sesión exitosamente.', 'success')
     return redirect('/login')
 
-# Crear la base de datos solo en desarrollo
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
