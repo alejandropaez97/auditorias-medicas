@@ -1,41 +1,36 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Solicitar Auditoría</title>
-</head>
-<body>
-    <h1>Solicitar Auditoría</h1>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category }}">{{ message }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+{% extends "base.html" %}
+{% block title %}Solicitar Auditoría{% endblock %}
+{% block content %}
+    <h1 class="mb-4">Solicitar Auditoría</h1>
     <form method="POST" action="">
         {{ form.hidden_tag() }}
-        <div>
-            {{ form.paciente.label }} {{ form.paciente }}
+        <div class="mb-3">
+            {{ form.paciente.label(class="form-label") }} 
+            {{ form.paciente(class="form-control") }}
         </div>
-        <div>
-            {{ form.cedula.label }} {{ form.cedula }}
+        <div class="mb-3">
+            {{ form.cedula.label(class="form-label") }} 
+            {{ form.cedula(class="form-control") }}
         </div>
-        <div>
-            {{ form.compania.label }} {{ form.compania }}
+        <div class="mb-3">
+            {{ form.compania.label(class="form-label") }} 
+            {{ form.compania(class="form-control") }}
         </div>
-        <div>
-            {{ form.examenes.label }} {{ form.examenes(rows=3) }}
+        <div class="mb-3">
+            {{ form.examenes.label(class="form-label") }} 
+            {{ form.examenes(class="form-control", rows=3) }}
         </div>
-        <div>
-            {{ form.diagnosticos.label }} {{ form.diagnosticos(rows=3, placeholder="Ejemplo:\nE11 - Diabetes mellitus tipo 2\nZ490 - Atención a un injerto renal") }}
+        <div class="mb-3">
+            {{ form.diagnosticos.label(class="form-label") }} 
+            {{ form.diagnosticos(class="form-control", rows=3, placeholder="Ejemplo:\nE11 - Diabetes mellitus tipo 2\nZ490 - Atención a un injerto renal") }}
         </div>
-        <div>
-            {{ form.centro_medico.label }} {{ form.centro_medico }}
+        <div class="mb-3">
+            {{ form.centro_medico.label(class="form-label") }} 
+            {{ form.centro_medico(class="form-control") }}
         </div>
-        <div>
-            {{ form.submit }}
+        <div class="mb-3">
+            {{ form.submit(class="btn btn-primary") }}
         </div>
     </form>
-    <a href="{{ url_for('historial') }}">Volver al Historial</a>
-</body>
-</html>
+    <a href="{{ url_for('historial') }}" class="btn btn-secondary">Volver al Historial</a>
+{% endblock %}
