@@ -93,21 +93,17 @@ def auditar_solicitud(compania_paciente, examenes):
 def generar_pdf(auditoria):
     pdf_folder = app.config['PDF_FOLDER']
     if not os.path.exists(pdf_folder):
-        os.makedirs(pdf_folder, exist_ok=True)  # Añadido exist_ok para evitar errores si ya existe
+        os.makedirs(pdf_folder, exist_ok=True)
     pdf_path = os.path.join(pdf_folder, f"autorizacion_{auditoria.id}.pdf")
     c = canvas.Canvas(pdf_path, pagesize=letter)
-    c.drawString(100, 750, "Autorización de Auditoría Médica")
-    c.drawString(100, 730, f"Paciente: {auditoria.paciente}")
-    c.drawString(100, 710, f"Cédula: {auditoria.cedula}")
-    c.drawString(100, 690, f"Compañía del paciente: {auditoria.compania_paciente}")
-    c.drawString(100, 670, f"Exámenes: {auditoria.examenes}")
-    c.drawString(100, 650, f"Centro Médico: {auditoria.centro_medico}")
-    texto_resultado = auditoria.resultado.split('\n')
-    y = 630
-    for linea in texto_resultado:
-        c.drawString(100, y, f"Resultado: {linea}")
-        y -= 20
-    c.drawString(100, y, f"Solicitado por: {current_user.email}")
+    lineas = auditoria.resultado.split('\n')
+    y = 750
+    for linea in lineas:
+        if y < 50:
+            c.showPage()
+            y = 750
+        c.drawString(50, y, linea)
+        y -= 15
     c.save()
     return pdf_path
 
