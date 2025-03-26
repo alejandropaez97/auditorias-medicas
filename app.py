@@ -70,6 +70,9 @@ def load_user(user_id):
 def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnosticos, centro_medico):
     client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
     
+    # Preprocesamos los examenes para evitar \n en la f-string
+    examenes_formateados = examenes.replace(',', '\n')
+    
     prompt = f"""
     Eres un asistente de auditoría médica para Privilegio Medicina Prepagada. Tu tarea es analizar solicitudes de autorización de procedimientos médicos y responder con un formato específico, evaluando la cobertura según criterios estrictos de pertinencia médica. Sigue estas normas:
 
@@ -91,7 +94,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     Cédula: {cedula}
 
     Pedido:
-    {examenes.replace(',', '\n')}
+    {examenes_formateados}
 
     Diagnósticos:
     {diagnosticos}
