@@ -40,7 +40,7 @@ class Auditoria(db.Model):
     compania_paciente = db.Column(db.String(150), nullable=False)
     examenes = db.Column(db.String(500), nullable=False)
     centro_medico = db.Column(db.String(150), nullable=False)
-    resultado = db.Column(db.String(2000), nullable=False)
+    resultado = db.Column(db.Text, nullable=False) #Cambio String(2000) a Text
     usuario_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     pdf_path = db.Column(db.String(500))
 
