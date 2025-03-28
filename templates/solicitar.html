@@ -1,36 +1,45 @@
 {% extends "base.html" %}
-{% block title %}Solicitar Auditoría{% endblock %}
 {% block content %}
-    <h1 class="mb-4">Solicitar Auditoría</h1>
+<div class="container">
+    <h2>Solicitud de Auditoría</h2>
     <form method="POST" action="">
         {{ form.hidden_tag() }}
-        <div class="mb-3">
-            {{ form.paciente.label(class="form-label") }} 
-            {{ form.paciente(class="form-control") }}
+        <div class="form-group">
+            {{ form.paciente.label }} {{ form.paciente(class="form-control") }}
         </div>
-        <div class="mb-3">
-            {{ form.cedula.label(class="form-label") }} 
-            {{ form.cedula(class="form-control") }}
+        <div class="form-group">
+            {{ form.cedula.label }} {{ form.cedula(class="form-control") }}
         </div>
-        <div class="mb-3">
-            {{ form.compania.label(class="form-label") }} 
-            {{ form.compania(class="form-control") }}
+        <div class="form-group">
+            {{ form.compania.label }} {{ form.compania(class="form-control") }}
         </div>
-        <div class="mb-3">
-            {{ form.examenes.label(class="form-label") }} 
-            {{ form.examenes(class="form-control", rows=3) }}
+        <div class="form-group">
+            {{ form.examenes.label }} {{ form.examenes(class="form-control", rows=3) }}
         </div>
-        <div class="mb-3">
-            {{ form.diagnosticos.label(class="form-label") }} 
-            {{ form.diagnosticos(class="form-control", rows=3, placeholder="Ejemplo:\nE11 - Diabetes mellitus tipo 2\nZ490 - Atención a un injerto renal") }}
+        <div class="form-group">
+            {{ form.diagnosticos.label }} {{ form.diagnosticos(class="form-control", rows=3) }}
         </div>
-        <div class="mb-3">
-            {{ form.centro_medico.label(class="form-label") }} 
-            {{ form.centro_medico(class="form-control") }}
+        <div class="form-group">
+            {{ form.centro_medico.label }} {{ form.centro_medico(class="form-control") }}
         </div>
-        <div class="mb-3">
+        <div class="form-group">
+            {{ form.cobertura.label }} {{ form.cobertura(class="form-control", placeholder="80.0") }}
+        </div>
+        <div class="form-group">
+            {{ form.medico_tratante.label }} {{ form.medico_tratante(class="form-control", placeholder="Opcional") }}
+        </div>
+        <div class="form-group">
+            {{ form.fecha_cita.label }} {{ form.fecha_cita(class="form-control", placeholder="Opcional") }}
+        </div>
+        <div class="form-group">
+            {{ form.hora_cita.label }} {{ form.hora_cita(class="form-control", placeholder="Opcional") }}
+        </div>
+        <div class="form-group">
             {{ form.submit(class="btn btn-primary") }}
         </div>
     </form>
-    <a href="{{ url_for('historial') }}" class="btn btn-secondary">Volver al Historial</a>
+</div>
+{% for message in get_flashed_messages() %}
+    <div class="alert alert-info">{{ message }}</div>
+{% endfor %}
 {% endblock %}

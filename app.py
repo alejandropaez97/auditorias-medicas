@@ -4,10 +4,12 @@ from flask_migrate import Migrate
 from flask_login import LoginManager, UserMixin, login_user, login_required, current_user, logout_user
 from flask_bcrypt import Bcrypt
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, TextAreaField
-from wtforms.validators import DataRequired, Email, Length
+from wtforms import StringField, PasswordField, SubmitField, TextAreaField, FloatField
+from wtforms.validators import DataRequired, Email, Length, Optional
 from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from openpyxl import Workbook
 from io import BytesIO
 import os
@@ -40,7 +42,7 @@ class Auditoria(db.Model):
     compania_paciente = db.Column(db.String(150), nullable=False)
     examenes = db.Column(db.String(500), nullable=False)
     centro_medico = db.Column(db.String(150), nullable=False)
-    resultado = db.Column(db.Text, nullable=False) #Cambio String(2000) a Text
+    resultado = db.Column(db.Text, nullable=False)
     usuario_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     pdf_path = db.Column(db.String(500))
 
@@ -61,17 +63,27 @@ class SolicitudForm(FlaskForm):
     examenes = TextAreaField('Exámenes (separados por comas)', validators=[DataRequired()])
     diagnosticos = TextAreaField('Diagnósticos (CIE10 - Descripción, uno por línea)', validators=[DataRequired()])
     centro_medico = StringField('Centro Médico', validators=[DataRequired()])
+    cobertura = FloatField('Porcentaje de Cobertura (%)', validators=[Optional()], default=80.0)
+    medico_tratante = StringField('Médico Tratante', validators=[Optional()])
+    fecha_cita = StringField('Fecha de Cita', validators=[Optional()])
+    hora_cita = StringField('Hora de Cita', validators=[Optional()])
     submit = SubmitField('Enviar Solicitud')
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnosticos, centro_medico):
+def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnosticos, centro_medico, cobertura, medico_tratante, fecha_cita, hora_cita):
     client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
     
     # Preprocesamos los examenes para evitar \n en la f-string
     examenes_formateados = examenes.replace(',', '\n')
+    
+    # Valores por defecto si los campos están vacíos
+    cobertura = cobertura if cobertura is not None else 80
+    medico_tratante = medico_tratante if medico_tratante else "Médico de Turno"
+    fecha_cita = fecha_cita if fecha_cita else "A coordinar con paciente"
+    hora_cita = hora_cita if hora_cita else "A coordinar con paciente"
     
     prompt = f"""
     Eres un asistente de auditoría médica para Privilegio Medicina Prepagada. Tu tarea es analizar solicitudes de autorización de procedimientos médicos y responder con un formato específico, evaluando la cobertura según criterios estrictos de pertinencia médica. Sigue estas normas:
@@ -79,7 +91,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     - Solo se cubren exámenes/procedimientos con relación directa al diagnóstico.
     - No se cubren exámenes por descarte, control o rutina.
     - Si un examen depende del resultado de otro, indícalo como "vía reembolso".
-    - Cobertura estándar: 80%, salvo excepciones (e.g., maternidad 100%).
+    - Cobertura estándar: {cobertura}%, salvo excepciones (e.g., maternidad 100%).
     - Terapias físicas: máximo $20 o $35 por sesión según contrato.
 
     Responde siempre en este formato:
@@ -99,12 +111,12 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     Diagnósticos:
     {diagnosticos}
 
-    Médico Tratante: Médico de Turno
-    Fecha Cita: A coordinar con paciente
-    Hora Cita: A coordinar con paciente
+    Médico Tratante: {medico_tratante}
+    Fecha Cita: {fecha_cita}
+    Hora Cita: {hora_cita}
     Centro Médico: {centro_medico}
     Cobertura
-    80%
+    {cobertura}%
 
     Procedimientos Autorizados:
     [Lista de exámenes cubiertos]
@@ -134,6 +146,9 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     Ejemplo de reglas específicas:
     - Diagnóstico E11 (Diabetes): Cubre Glucosa en ayunas, Hemoglobina glicosilada, Microalbuminuria, Creatinina.
     - Diagnóstico N18 (Insuficiencia Renal): Cubre Creatinina, Urea, Microalbuminuria, Electrolitos.
+    - Diagnóstico I10 (Hipertensión): Cubre Creatinina, Glucosa, Colesterol Total (si hay factores de riesgo).
+    - Diagnóstico E782 (Hiperlipidemia): Cubre Colesterol Total, HDL, LDL, Triglicéridos.
+    - Diagnóstico M139 (Artritis): Cubre Factor Reumatoideo, Creatinina.
     - No cubre PSA, CA19-9, Electroforesis de Proteínas si no hay diagnóstico relacionado con cáncer.
 
     Ahora, audita esta solicitud:
@@ -143,6 +158,10 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     Exámenes: {examenes}
     Diagnósticos: {diagnosticos}
     Centro Médico: {centro_medico}
+    Cobertura: {cobertura}%
+    Médico Tratante: {medico_tratante}
+    Fecha Cita: {fecha_cita}
+    Hora Cita: {hora_cita}
     """
     
     response = client.chat.completions.create(
@@ -156,12 +175,6 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     )
     
     return response.choices[0].message.content.strip()
-
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-import os
 
 def generar_pdf(auditoria):
     pdf_folder = app.config['PDF_FOLDER']
@@ -284,7 +297,12 @@ def solicitar():
         examenes = form.examenes.data
         diagnosticos = form.diagnosticos.data
         centro_medico = form.centro_medico.data
-        resultado = auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnosticos, centro_medico)
+        cobertura = form.cobertura.data
+        medico_tratante = form.medico_tratante.data
+        fecha_cita = form.fecha_cita.data
+        hora_cita = form.hora_cita.data
+        
+        resultado = auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnosticos, centro_medico, cobertura, medico_tratante, fecha_cita, hora_cita)
         auditoria = Auditoria(
             paciente=paciente,
             cedula=cedula,
