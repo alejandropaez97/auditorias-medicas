@@ -83,16 +83,16 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     hora_cita = hora_cita if hora_cita else "A coordinar con paciente"
     
     prompt = f"""
-    Eres un asistente de auditoría médica para Privilegio Medicina Prepagada. Tu tarea es analizar solicitudes de autorización de procedimientos médicos y responder con un formato específico, evaluando la cobertura según criterios estrictos de pertinencia médica. Sigue estas normas:
+    Eres un asistente de auditoría médica para Privilegio Medicina Prepagada. Tu tarea es analizar solicitudes de autorización de procedimientos médicos y responder con un formato específico. Sigue estas instrucciones estrictamente:
 
-    - Evalúa cada examen individualmente según los diagnósticos proporcionados. Autoriza los exámenes que tengan pertinencia médica razonable según las reglas específicas definidas abajo. Si un examen está explícitamente cubierto por al menos uno de los diagnósticos en las reglas específicas, debe autorizarse. Si no hay diagnóstico claro, no autorices ningún examen y explica que se requiere un diagnóstico específico.
-    - No se cubren exámenes por descarte, control o rutina, salvo que el diagnóstico lo justifique explícitamente según las reglas específicas.
-    - Las pruebas de embarazo (e.g., BETA HCG) nunca se cubren bajo ninguna circunstancia, ya que son para descartar.
+    - Evalúa cada examen individualmente contra los diagnósticos proporcionados. Autoriza todos los exámenes listados en las reglas específicas para cada diagnóstico coincidente. Estas reglas son obligatorias y deben aplicarse literalmente si el diagnóstico está presente. Si un examen no está en las reglas específicas de ningún diagnóstico dado, no lo autorices.
+    - No autorices exámenes por descarte, control o rutina a menos que las reglas específicas lo indiquen explícitamente para el diagnóstico.
+    - Las pruebas de embarazo (e.g., BETA HCG) nunca se cubren bajo ninguna circunstancia.
     - Si un examen depende del resultado de otro, indícalo como "vía reembolso".
     - Cobertura estándar: {cobertura}%, salvo excepciones (e.g., maternidad 100%).
     - Terapias físicas: máximo $20 o $35 por sesión según contrato.
     - El usuario ingresará solo el código CIE10 (e.g., "A09") o el diagnóstico (e.g., "Gastroenteritis"). En el resultado, siempre muestra el código CIE10 completo seguido de la descripción completa en mayúsculas (e.g., "A09 - GASTROENTERITIS Y COLITIS INFECCIOSAS, NO ESPECIFICADAS").
-    - Para los exámenes o procedimientos, aunque el usuario coloque iniciales o nombres parciales (e.g., "BH", "GLUC"), devuelve el nombre completo en mayúsculas en el resultado (e.g., "BIOMETRÍA HEMÁTICA", "GLUCOSA"). En la sección "Pedido", muestra TODOS los exámenes solicitados con sus nombres completos en mayúsculas, independientemente de si son autorizados o no. Usa nombres estándares sin prefijos innecesarios como "BHC" o "HPES".
+    - Para los exámenes, aunque el usuario coloque iniciales o nombres parciales (e.g., "BH", "GLUC"), devuelve el nombre completo en mayúsculas (e.g., "BIOMETRÍA HEMÁTICA", "GLUCOSA"). En "Pedido", muestra TODOS los exámenes solicitados en mayúsculas con nombre completo, autorizados o no. Usa nombres estándares sin prefijos innecesarios como "BHC" o "HPES".
 
     Responde siempre en este formato:
     ```
@@ -137,13 +137,13 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     Saludos cordiales,
     Privilegio Medicina Prepagada
     PRIMEPRE S.A.
-    DIR: Juan León Mera N21-291 y Jerónimo Carrión, Edificio Sevilla pisos 6, 7, 8 y 9
+    DIR: Juan León Mera N21-291 y Jerónimo Carrión, Edificio Sevilla piso 7
     E-MAIL: direccionmedica@privilegio.med.ec
     WEB: www.privilegio.med.ec
     QUITO – ECUADOR
     ```
 
-    Ejemplo de reglas específicas (estas tienen prioridad sobre cualquier interpretación general):
+    Reglas específicas (aplica estas reglas literalmente para cada diagnóstico presente):
     - Diagnóstico E11 (E11 - DIABETES MELLITUS TIPO 2): Cubre GLUCOSA EN AYUNAS, HEMOGLOBINA GLICOSILADA, MICROALBUMINURIA, CREATININA.
     - Diagnóstico N18 (N18 - INSUFICIENCIA RENAL CRÓNICA): Cubre CREATININA, UREA, MICROALBUMINURIA, ELECTROLITOS.
     - Diagnóstico I10 (I10 - HIPERTENSIÓN ESENCIAL): Cubre CREATININA, GLUCOSA, COLESTEROL TOTAL (si hay factores de riesgo).
@@ -154,7 +154,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     - Diagnóstico R104 (R104 - OTROS DOLORES ABDOMINALES Y LOS NO ESPECIFICADOS): Cubre BIOMETRÍA HEMÁTICA (para inflamación o anemia), HELICOBACTER PYLORI EN HECES (infección gastrointestinal), ELECTROLITOS (desequilibrios), RADIOGRAFÍA ABDOMINAL (evaluar obstrucciones o causas estructurales).
     - Diagnóstico K590 (K590 - CONSTIPACIÓN): Cubre ELECTROLITOS (desequilibrios metabólicos), RADIOGRAFÍA ABDOMINAL (descartar obstrucción).
     - No cubre PSA, CA19-9, ELECTROFORESIS DE PROTEÍNAS si no hay diagnóstico relacionado con cáncer.
-    - Pruebas de embarazo (e.g., BETA HCG) nunca se cubren, ya que son para descartar.
+    - Pruebas de embarazo (e.g., BETA HCG) nunca se cubren.
 
     Ahora, audita esta solicitud:
     Paciente: {paciente}
