@@ -170,7 +170,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     """
     
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4", # Cambiado a GPT-4
         messages=[
             {"role": "system", "content": "Eres un auditor médico experto con conocimiento de códigos CIE10 y nombres completos de exámenes médicos."},
             {"role": "user", "content": prompt}
