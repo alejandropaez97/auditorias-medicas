@@ -20,6 +20,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'x7k9p!m2q$z')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///auditorias.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Usar carpeta temporal para PDFs (efímera en Render gratuito)
 app.config['PDF_FOLDER'] = os.getenv('PDF_FOLDER', '/tmp/pdfs')
 
 db = SQLAlchemy(app)
@@ -76,10 +77,7 @@ def load_user(user_id):
 def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnosticos, centro_medico, cobertura, medico_tratante, fecha_cita, hora_cita):
     client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
     
-    # Preprocesamos los examenes para evitar \n en la f-string
     examenes_formateados = examenes.replace(',', '\n')
-    
-    # Valores por defecto si los campos están vacíos
     cobertura = cobertura if cobertura is not None else 80
     medico_tratante = medico_tratante if medico_tratante else "Médico de Turno"
     fecha_cita = fecha_cita if fecha_cita else "A coordinar con paciente"
@@ -88,8 +86,8 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     prompt = f"""
     Eres un asistente de auditoría médica para Privilegio Medicina Prepagada. Tu tarea es analizar solicitudes de autorización de procedimientos médicos y responder con un formato específico, evaluando la cobertura según criterios estrictos de pertinencia médica. Sigue estas normas:
 
-    - Solo se cubren exámenes/procedimientos con relación directa al diagnóstico proporcionado. Evalúa cada examen individualmente según los diagnósticos dados y autoriza los que tengan pertinencia médica razonable. Si no hay diagnóstico claro, no autorices ningún examen y explica que se requiere un diagnóstico específico.
-    - No se cubren exámenes por descarte, control o rutina, salvo que el diagnóstico lo justifique explícitamente.
+    - Evalúa cada examen individualmente según los diagnósticos proporcionados. Autoriza los exámenes que tengan pertinencia médica razonable según las reglas específicas definidas abajo. Si un examen está explícitamente cubierto por al menos uno de los diagnósticos en las reglas específicas, debe autorizarse. Si no hay diagnóstico claro, no autorices ningún examen y explica que se requiere un diagnóstico específico.
+    - No se cubren exámenes por descarte, control o rutina, salvo que el diagnóstico lo justifique explícitamente según las reglas específicas.
     - Las pruebas de embarazo (e.g., BETA HCG) nunca se cubren bajo ninguna circunstancia, ya que son para descartar.
     - Si un examen depende del resultado de otro, indícalo como "vía reembolso".
     - Cobertura estándar: {cobertura}%, salvo excepciones (e.g., maternidad 100%).
@@ -112,7 +110,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     [Lista de TODOS los exámenes solicitados en mayúsculas con nombre completo, uno por línea]
 
     Diagnósticos:
-    [Completa con el código CIE10 y descripción completa en mayúsc BENEFICIOS DE LA TIROIDESculpas, uno por línea. Si no hay diagnóstico, indica "NO ESPECIFICADO"]
+    [Completa con el código CIE10 y descripción completa en mayúsculas, uno por línea. Si no hay diagnóstico, indica "NO ESPECIFICADO"]
 
     Médico Tratante: {medico_tratante}
     Fecha Cita: {fecha_cita}
@@ -128,7 +126,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     [Lista de exámenes no cubiertos en mayúsculas con nombre completo, uno por línea]
 
     Motivo:
-    [Explicación detallada de por qué no se cubren los procedimientos no autorizados, basada en las reglas y los diagnósticos]
+    [Explicación detallada de por qué no se cubren los procedimientos no autorizados, basada en las reglas específicas y los diagnósticos]
 
     Nota:
     El paciente coordinará los procedimientos autorizados con la central médica. Por favor, asistir con cédula de identidad y pedido médico original.
@@ -146,7 +144,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     QUITO – ECUADOR
     ```
 
-    Ejemplo de reglas específicas:
+    Ejemplo de reglas específicas (estas tienen prioridad sobre cualquier interpretación general):
     - Diagnóstico E11 (E11 - DIABETES MELLITUS TIPO 2): Cubre GLUCOSA EN AYUNAS, HEMOGLOBINA GLICOSILADA, MICROALBUMINURIA, CREATININA.
     - Diagnóstico N18 (N18 - INSUFICIENCIA RENAL CRÓNICA): Cubre CREATININA, UREA, MICROALBUMINURIA, ELECTROLITOS.
     - Diagnóstico I10 (I10 - HIPERTENSIÓN ESENCIAL): Cubre CREATININA, GLUCOSA, COLESTEROL TOTAL (si hay factores de riesgo).
@@ -190,7 +188,7 @@ def generar_pdf(auditoria):
         os.makedirs(pdf_folder, exist_ok=True)
     pdf_path = os.path.join(pdf_folder, f"autorizacion_{auditoria.id}.pdf")
 
-    # Crear el documento con márgenes de 1 pulgada
+    # Generar el PDF siempre que se solicite (no confiamos en almacenamiento persistente)
     doc = SimpleDocTemplate(
         pdf_path,
         pagesize=letter,
@@ -199,8 +197,6 @@ def generar_pdf(auditoria):
         topMargin=72,
         bottomMargin=72
     )
-
-    # Estilos
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(
         name='CustomText',
@@ -218,21 +214,15 @@ def generar_pdf(auditoria):
         spaceAfter=6
     ))
 
-    # Contenido del PDF
     content = []
-
-    # Agregar el logo (ajusta la ruta y tamaño según tu archivo)
     logo_path = os.path.join(app.static_folder, 'images', 'logo.png')
     if os.path.exists(logo_path):
-        logo = Image(logo_path, width=100, height=50)  # Ajusta width y height según tu logo
+        logo = Image(logo_path, width=100, height=50)
         content.append(logo)
         content.append(Spacer(1, 12))
 
-    # Procesar el texto de auditoria.resultado
     texto = auditoria.resultado.replace('```', '').strip()
     lineas = texto.split('\n')
-
-    # Separar en secciones con encabezados
     current_section = []
     for linea in lineas:
         linea = linea.strip()
@@ -253,7 +243,6 @@ def generar_pdf(auditoria):
     if current_section:
         content.append(Paragraph('\n'.join(current_section), styles['CustomText']))
 
-    # Construir el PDF
     doc.build(content)
     return pdf_path
 
@@ -344,7 +333,19 @@ def descargar_pdf(auditoria_id):
     auditoria = Auditoria.query.get_or_404(auditoria_id)
     if current_user.role != 'admin' and auditoria.usuario_id != current_user.id:
         return "No tienes permiso para descargar este archivo", 403
-    return send_from_directory(app.config['PDF_FOLDER'], f"autorizacion_{auditoria_id}.pdf", as_attachment=True)
+    
+    # Regenerar el PDF cada vez si no existe (efímero en Render gratuito)
+    pdf_path = generar_pdf(auditoria)
+    auditoria.pdf_path = pdf_path
+    db.session.commit()
+    
+    return send_from_directory(
+        app.config['PDF_FOLDER'],
+        f"autorizacion_{auditoria_id}.pdf",
+        as_attachment=True,
+        mimetype='application/pdf',
+        attachment_filename=f"autorizacion_{auditoria_id}.pdf"
+    )
 
 @app.route('/exportar_historial')
 @login_required
