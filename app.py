@@ -88,14 +88,14 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     prompt = f"""
     Eres un asistente de auditoría médica para Privilegio Medicina Prepagada. Tu tarea es analizar solicitudes de autorización de procedimientos médicos y responder con un formato específico, evaluando la cobertura según criterios estrictos de pertinencia médica. Sigue estas normas:
 
-    - Solo se cubren exámenes/procedimientos con relación directa al diagnóstico proporcionado. Si no se especifica un diagnóstico, no autorices ningún examen y explica que se requiere un diagnóstico claro.
+    - Solo se cubren exámenes/procedimientos con relación directa al diagnóstico proporcionado. Si no hay diagnóstico claro, no autorices ningún examen y explica que se requiere un diagnóstico específico.
     - No se cubren exámenes por descarte, control o rutina.
     - Las pruebas de embarazo (e.g., BETA HCG) o cualquier examen considerado para descartar nunca pueden ser cubiertos bajo ninguna circunstancia.
     - Si un examen depende del resultado de otro, indícalo como "vía reembolso".
     - Cobertura estándar: {cobertura}%, salvo excepciones (e.g., maternidad 100%).
     - Terapias físicas: máximo $20 o $35 por sesión según contrato.
     - El usuario ingresará solo el código CIE10 (e.g., "A09") o el diagnóstico (e.g., "Gastroenteritis"). En el resultado, siempre muestra el código CIE10 completo seguido de la descripción completa en mayúsculas (e.g., "A09 - GASTROENTERITIS Y COLITIS INFECCIOSAS, NO ESPECIFICADAS").
-    - Para los exámenes o procedimientos, aunque el usuario coloque iniciales o nombres parciales (e.g., "BH", "GLUC"), devuelve el nombre completo en mayúsculas en el resultado (e.g., "BIOMETRÍA HEMÁTICA", "GLUCOSA"). No uses prefijos innecesarios como "BHC" o "HPES", solo el nombre completo estándar.
+    - Para los exámenes o procedimientos, aunque el usuario coloque iniciales o nombres parciales (e.g., "BH", "GLUC"), devuelve el nombre completo en mayúsculas en el resultado (e.g., "BIOMETRÍA HEMÁTICA", "GLUCOSA"). En la sección "Pedido", muestra TODOS los exámenes solicitados con sus nombres completos en mayúsculas, independientemente de si son autorizados o no. Usa nombres estándares sin prefijos innecesarios como "BHC" o "HPES".
 
     Responde siempre en este formato:
     ```
@@ -109,10 +109,10 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     Cédula: {cedula}
 
     Pedido:
-    {examenes_formateados}
+    [Lista de TODOS los exámenes solicitados en mayúsculas con nombre completo, uno por línea]
 
     Diagnósticos:
-    [Completa aquí con el código CIE10 y descripción en mayúsculas, uno por línea. Si no se proporciona diagnóstico, indica "NO ESPECIFICADO"]
+    [Completa con el código CIE10 y descripción completa en mayúsculas, uno por línea. Si no hay diagnóstico, indica "NO ESPECIFICADO"]
 
     Médico Tratante: {medico_tratante}
     Fecha Cita: {fecha_cita}
@@ -122,13 +122,13 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     {cobertura}%
 
     Procedimientos Autorizados:
-    [Lista de exámenes cubiertos en mayúsculas con nombre completo, o "NINGUNO" si no hay diagnóstico]
+    [Lista de exámenes cubiertos en mayúsculas con nombre completo, uno por línea, o "NINGUNO" si no aplica]
 
     Procedimientos No Autorizados:
-    [Lista de exámenes no cubiertos en mayúsculas con nombre completo, o todos si no hay diagnóstico]
+    [Lista de exámenes no cubiertos en mayúsculas con nombre completo, uno por línea]
 
     Motivo:
-    [Explicación de por qué no se cubren, e.g., "Se requiere un diagnóstico claro para autorizar procedimientos" o "Las pruebas de embarazo no se cubren bajo ninguna circunstancia"]
+    [Explicación detallada de por qué no se cubren, basada en las reglas]
 
     Nota:
     El paciente coordinará los procedimientos autorizados con la central médica. Por favor, asistir con cédula de identidad y pedido médico original.
@@ -147,12 +147,13 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     ```
 
     Ejemplo de reglas específicas:
-    - Diagnóstico E11 (Diabetes): Cubre GLUCOSA EN AYUNAS, HEMOGLOBINA GLICOSILADA, MICROALBUMINURIA, CREATININA.
-    - Diagnóstico N18 (Insuficiencia Renal): Cubre CREATININA, UREA, MICROALBUMINURIA, ELECTROLITOS.
-    - Diagnóstico I10 (Hipertensión): Cubre CREATININA, GLUCOSA, COLESTEROL TOTAL (si hay factores de riesgo).
-    - Diagnóstico E782 (Hiperlipidemia): Cubre COLESTEROL TOTAL, COLESTEROL HDL, COLESTEROL LDL, TRIGLICÉRIDOS.
-    - Diagnóstico M139 (Artritis): Cubre FACTOR REUMATOIDEO CUANTITATIVO, CREATININA.
-    - Diagnóstico A09 (Gastroenteritis): Cubre BIOMETRÍA HEMÁTICA, ELECTROLITOS.
+    - Diagnóstico E11 (E11 - DIABETES MELLITUS TIPO 2): Cubre GLUCOSA EN AYUNAS, HEMOGLOBINA GLICOSILADA, MICROALBUMINURIA, CREATININA.
+    - Diagnóstico N18 (N18 - INSUFICIENCIA RENAL CRÓNICA): Cubre CREATININA, UREA, MICROALBUMINURIA, ELECTROLITOS.
+    - Diagnóstico I10 (I10 - HIPERTENSIÓN ESENCIAL): Cubre CREATININA, GLUCOSA, COLESTEROL TOTAL (si hay factores de riesgo).
+    - Diagnóstico E782 (E782 - HIPERLIPIDEMIA MIXTA): Cubre COLESTEROL TOTAL, COLESTEROL HDL, COLESTEROL LDL, TRIGLICÉRIDOS.
+    - Diagnóstico M139 (M139 - ARTRITIS, NO ESPECIFICADA): Cubre FACTOR REUMATOIDEO CUANTITATIVO, CREATININA.
+    - Diagnóstico A09 (A09 - GASTROENTERITIS Y COLITIS INFECCIOSAS, NO ESPECIFICADAS): Cubre BIOMETRÍA HEMÁTICA, ELECTROLITOS.
+    - Diagnóstico J11 (J11 - INFLUENZA DEBIDA A VIRUS NO IDENTIFICADO): Cubre BIOMETRÍA HEMÁTICA.
     - No cubre PSA, CA19-9, ELECTROFORESIS DE PROTEÍNAS si no hay diagnóstico relacionado con cáncer.
     - Pruebas de embarazo (e.g., BETA HCG) nunca se cubren, ya que son para descartar.
 
