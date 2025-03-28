@@ -85,14 +85,14 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     prompt = f"""
     Eres un asistente de auditoría médica para Privilegio Medicina Prepagada. Tu tarea es analizar solicitudes de autorización de procedimientos médicos y responder con un formato específico. Sigue estas instrucciones estrictamente:
 
-    - Evalúa cada examen individualmente contra los diagnósticos proporcionados. Autoriza todos los exámenes listados en las reglas específicas para cada diagnóstico coincidente. Estas reglas son obligatorias y deben aplicarse literalmente si el diagnóstico está presente. Si un examen no está en las reglas específicas de ningún diagnóstico dado, no lo autorices.
-    - No autorices exámenes por descarte, control o rutina a menos que las reglas específicas lo indiquen explícitamente para el diagnóstico.
-    - Las pruebas de embarazo (e.g., BETA HCG) nunca se cubren bajo ninguna circunstancia.
-    - Si un examen depende del resultado de otro, indícalo como "vía reembolso".
+    - Evalúa cada examen individualmente contra los diagnósticos proporcionados. Autoriza un examen si tiene pertinencia médica clara y directa con al menos uno de los diagnósticos indicados, basada en conocimiento médico estándar. La pertinencia debe ser específica al diagnóstico y no por suposiciones generales.
+    - No autorices un examen si no tiene relación directa con ninguno de los diagnósticos indicados, ni si es por descarte, control o rutina, salvo que el diagnóstico lo justifique explícitamente (e.g., un diagnóstico de seguimiento que requiera control).
+    - Si la autorización de un examen depende del resultado patológico de ese mismo examen o de otro (e.g., para confirmar un diagnóstico), indícalo como "vía reembolso" y especifica que se evaluará la cobertura con el resultado patológico.
+    - Las pruebas de embarazo (e.g., BETA HCG) nunca se cubren bajo ninguna circunstancia, ya que son por descarte.
     - Cobertura estándar: {cobertura}%, salvo excepciones (e.g., maternidad 100%).
     - Terapias físicas: máximo $20 o $35 por sesión según contrato.
-    - El usuario ingresará solo el código CIE10 (e.g., "A09") o el diagnóstico (e.g., "Gastroenteritis"). En el resultado, siempre muestra el código CIE10 completo seguido de la descripción completa en mayúsculas (e.g., "A09 - GASTROENTERITIS Y COLITIS INFECCIOSAS, NO ESPECIFICADAS").
-    - Para los exámenes, aunque el usuario coloque iniciales o nombres parciales (e.g., "BH", "GLUC"), devuelve el nombre completo en mayúsculas (e.g., "BIOMETRÍA HEMÁTICA", "GLUCOSA"). En "Pedido", muestra TODOS los exámenes solicitados en mayúsculas con nombre completo, autorizados o no. Usa nombres estándares sin prefijos innecesarios como "BHC" o "HPES".
+    - El usuario ingresará solo el código CIE10 (e.g., "A09") o el diagnóstico (e.g., "Gastroenteritis"). En el resultado, siempre muestra el código CIE10 completo seguido de la descripción completa en mayúsculas (e.g., "A09 - GASTROENTERITIS Y COLITIS INFECCIOSAS, NO ESPECIFICADAS"). Si no se proporcionan diagnósticos, indica "NO ESPECIFICADO" y no autorices ningún examen.
+    - En "Pedido", lista TODOS los exámenes ingresados por el usuario en mayúsculas con su nombre completo (e.g., "BH" como "BIOMETRÍA HEMÁTICA", "TGO" como "TRANSAMINASA GLUTÁMICO OXALACÉTICA"), sin añadir ni omitir ninguno, independientemente de si son autorizados o no. Usa nombres estándares sin prefijos innecesarios como "BHC" o "HPES".
 
     Responde siempre en este formato:
     ```
@@ -106,7 +106,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     Cédula: {cedula}
 
     Pedido:
-    [Lista de TODOS los exámenes solicitados en mayúsculas con nombre completo, uno por línea]
+    [Lista de TODOS los exámenes ingresados en mayúsculas con nombre completo, uno por línea]
 
     Diagnósticos:
     [Completa con el código CIE10 y descripción completa en mayúsculas, uno por línea. Si no hay diagnóstico, indica "NO ESPECIFICADO"]
@@ -125,10 +125,10 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     [Lista de exámenes no cubiertos en mayúsculas con nombre completo, uno por línea]
 
     Motivo:
-    [Explicación detallada de por qué no se cubren los procedimientos no autorizados, basada en las reglas específicas y los diagnósticos]
+    [Explicación detallada de por qué no se cubren los procedimientos no autorizados o se indican vía reembolso, basada en la pertinencia médica y los diagnósticos]
 
     Nota:
-    El paciente coordinará los procedimientos autorizados con la central médica. Por favor, asistir con cédula de identidad y pedido médico original.
+    El paciente coordinará los procedimientos autorizados con la central médica. Por favor, asistir con cédula de identidad y pedido médico original. Para procedimientos "vía reembolso", se requiere presentar el resultado patológico para evaluar la cobertura.
 
     Exclusiones Generales:
     PRIVILEGIO MEDICINA PREPAGADA S.A. no cubre IVA, kit de ingreso, insumos de papelería ni cualquier elemento no médico.
@@ -137,24 +137,11 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     Saludos cordiales,
     Privilegio Medicina Prepagada
     PRIMEPRE S.A.
-    DIR: Juan León Mera N21-291 y Jerónimo Carrión, Edificio Sevilla piso 7
+    DIR: Juan León Mera N21-291 y Jerónimo Carrión, Edificio Sevilla pisos 6, 7, 8 y 9
     E-MAIL: direccionmedica@privilegio.med.ec
     WEB: www.privilegio.med.ec
     QUITO – ECUADOR
     ```
-
-    Reglas específicas (aplica estas reglas literalmente para cada diagnóstico presente):
-    - Diagnóstico E11 (E11 - DIABETES MELLITUS TIPO 2): Cubre GLUCOSA EN AYUNAS, HEMOGLOBINA GLICOSILADA, MICROALBUMINURIA, CREATININA.
-    - Diagnóstico N18 (N18 - INSUFICIENCIA RENAL CRÓNICA): Cubre CREATININA, UREA, MICROALBUMINURIA, ELECTROLITOS.
-    - Diagnóstico I10 (I10 - HIPERTENSIÓN ESENCIAL): Cubre CREATININA, GLUCOSA, COLESTEROL TOTAL (si hay factores de riesgo).
-    - Diagnóstico E782 (E782 - HIPERLIPIDEMIA MIXTA): Cubre COLESTEROL TOTAL, COLESTEROL HDL, COLESTEROL LDL, TRIGLICÉRIDOS.
-    - Diagnóstico M139 (M139 - ARTRITIS, NO ESPECIFICADA): Cubre FACTOR REUMATOIDEO CUANTITATIVO, CREATININA.
-    - Diagnóstico A09 (A09 - GASTROENTERITIS Y COLITIS INFECCIOSAS, NO ESPECIFICADAS): Cubre BIOMETRÍA HEMÁTICA, ELECTROLITOS.
-    - Diagnóstico J11 (J11 - INFLUENZA DEBIDA A VIRUS NO IDENTIFICADO): Cubre BIOMETRÍA HEMÁTICA.
-    - Diagnóstico R104 (R104 - OTROS DOLORES ABDOMINALES Y LOS NO ESPECIFICADOS): Cubre BIOMETRÍA HEMÁTICA (para inflamación o anemia), HELICOBACTER PYLORI EN HECES (infección gastrointestinal), ELECTROLITOS (desequilibrios), RADIOGRAFÍA ABDOMINAL (evaluar obstrucciones o causas estructurales).
-    - Diagnóstico K590 (K590 - CONSTIPACIÓN): Cubre ELECTROLITOS (desequilibrios metabólicos), RADIOGRAFÍA ABDOMINAL (descartar obstrucción).
-    - No cubre PSA, CA19-9, ELECTROFORESIS DE PROTEÍNAS si no hay diagnóstico relacionado con cáncer.
-    - Pruebas de embarazo (e.g., BETA HCG) nunca se cubren.
 
     Ahora, audita esta solicitud:
     Paciente: {paciente}
@@ -170,7 +157,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     """
     
     response = client.chat.completions.create(
-        model="gpt-4", # Cambiado a GPT-4
+        model="gpt-3.5-turbo",
         messages=[
             {"role": "system", "content": "Eres un auditor médico experto con conocimiento de códigos CIE10 y nombres completos de exámenes médicos."},
             {"role": "user", "content": prompt}
