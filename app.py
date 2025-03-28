@@ -157,23 +157,83 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     
     return response.choices[0].message.content.strip()
 
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+import os
+
 def generar_pdf(auditoria):
     pdf_folder = app.config['PDF_FOLDER']
     if not os.path.exists(pdf_folder):
         os.makedirs(pdf_folder, exist_ok=True)
     pdf_path = os.path.join(pdf_folder, f"autorizacion_{auditoria.id}.pdf")
-    c = canvas.Canvas(pdf_path, pagesize=letter)
-    
-    lineas = auditoria.resultado.split('\n')
-    y = 750
+
+    # Crear el documento con márgenes de 1 pulgada
+    doc = SimpleDocTemplate(
+        pdf_path,
+        pagesize=letter,
+        leftMargin=72,
+        rightMargin=72,
+        topMargin=72,
+        bottomMargin=72
+    )
+
+    # Estilos
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(
+        name='CustomText',
+        fontName='Helvetica',
+        fontSize=9,
+        leading=12,
+        textColor=colors.black
+    ))
+    styles.add(ParagraphStyle(
+        name='Header',
+        fontName='Helvetica-Bold',
+        fontSize=10,
+        leading=12,
+        textColor=colors.darkblue,
+        spaceAfter=6
+    ))
+
+    # Contenido del PDF
+    content = []
+
+    # Agregar el logo (ajusta la ruta y tamaño según tu archivo)
+    logo_path = os.path.join(app.static_folder, 'images', 'logo.png')
+    if os.path.exists(logo_path):
+        logo = Image(logo_path, width=100, height=50)  # Ajusta width y height según tu logo
+        content.append(logo)
+        content.append(Spacer(1, 12))
+
+    # Procesar el texto de auditoria.resultado
+    texto = auditoria.resultado.replace('```', '').strip()
+    lineas = texto.split('\n')
+
+    # Separar en secciones con encabezados
+    current_section = []
     for linea in lineas:
-        if y < 50:
-            c.showPage()
-            y = 750
-        c.drawString(50, y, linea)
-        y -= 15
+        linea = linea.strip()
+        if not linea:
+            if current_section:
+                content.append(Paragraph('\n'.join(current_section), styles['CustomText']))
+                content.append(Spacer(1, 6))
+            current_section = []
+        elif linea.isupper() or linea.startswith(('Autorización', 'Paciente:', 'Pedido:', 'Diagnósticos:', 'Cobertura', 'Procedimientos Autorizados:', 'Procedimientos No Autorizados:', 'Motivo:', 'Nota:', 'Exclusiones Generales:')):
+            if current_section:
+                content.append(Paragraph('\n'.join(current_section), styles['CustomText']))
+                content.append(Spacer(1, 6))
+            content.append(Paragraph(linea, styles['Header']))
+            current_section = []
+        else:
+            current_section.append(linea)
     
-    c.save()
+    if current_section:
+        content.append(Paragraph('\n'.join(current_section), styles['CustomText']))
+
+    # Construir el PDF
+    doc.build(content)
     return pdf_path
 
 @app.route('/')
