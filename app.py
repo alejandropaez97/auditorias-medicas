@@ -61,7 +61,7 @@ class SolicitudForm(FlaskForm):
     cedula = StringField('Cédula', validators=[DataRequired(), Length(min=6, max=20)])
     compania = StringField('Compañía del Paciente', validators=[DataRequired()])
     examenes = TextAreaField('Exámenes (separados por comas)', validators=[DataRequired()])
-    diagnosticos = TextAreaField('Diagnósticos (CIE10 - Descripción, uno por línea)', validators=[DataRequired()])
+    diagnosticos = TextAreaField('Diagnósticos (CIE10 o Descripción, uno por línea)', validators=[DataRequired()])
     centro_medico = StringField('Centro Médico', validators=[DataRequired()])
     cobertura = FloatField('Porcentaje de Cobertura (%)', validators=[Optional()], default=80.0)
     medico_tratante = StringField('Médico Tratante', validators=[Optional()])
@@ -90,9 +90,12 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
 
     - Solo se cubren exámenes/procedimientos con relación directa al diagnóstico.
     - No se cubren exámenes por descarte, control o rutina.
+    - Las pruebas de embarazo o cualquier examen considerado para descartar nunca pueden ser cubiertos bajo ninguna circunstancia.
     - Si un examen depende del resultado de otro, indícalo como "vía reembolso".
     - Cobertura estándar: {cobertura}%, salvo excepciones (e.g., maternidad 100%).
     - Terapias físicas: máximo $20 o $35 por sesión según contrato.
+    - El usuario ingresará solo el código CIE10 (e.g., "A09") o el diagnóstico (e.g., "Gastroenteritis"). En el resultado, siempre muestra el código CIE10 completo seguido de la descripción completa en mayúsculas (e.g., "A09 - GASTROENTERITIS Y COLITIS INFECCIOSAS, NO ESPECIFICADAS").
+    - Para los exámenes o procedimientos, aunque el usuario coloque iniciales o nombres parciales (e.g., "BH", "GLUC"), devuelve el nombre completo en mayúsculas en el resultado (e.g., "BIOMETRÍA HEMÁTICA", "GLUCOSA").
 
     Responde siempre en este formato:
     ```
@@ -109,7 +112,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     {examenes_formateados}
 
     Diagnósticos:
-    {diagnosticos}
+    [Completa aquí con el código CIE10 y descripción en mayúsculas, uno por línea]
 
     Médico Tratante: {medico_tratante}
     Fecha Cita: {fecha_cita}
@@ -119,10 +122,10 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     {cobertura}%
 
     Procedimientos Autorizados:
-    [Lista de exámenes cubiertos]
+    [Lista de exámenes cubiertos en mayúsculas con nombre completo]
 
     Procedimientos No Autorizados:
-    [Lista de exámenes no cubiertos]
+    [Lista de exámenes no cubiertos en mayúsculas con nombre completo]
 
     Motivo:
     [Explicación de por qué no se cubren]
@@ -144,12 +147,14 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     ```
 
     Ejemplo de reglas específicas:
-    - Diagnóstico E11 (Diabetes): Cubre Glucosa en ayunas, Hemoglobina glicosilada, Microalbuminuria, Creatinina.
-    - Diagnóstico N18 (Insuficiencia Renal): Cubre Creatinina, Urea, Microalbuminuria, Electrolitos.
-    - Diagnóstico I10 (Hipertensión): Cubre Creatinina, Glucosa, Colesterol Total (si hay factores de riesgo).
-    - Diagnóstico E782 (Hiperlipidemia): Cubre Colesterol Total, HDL, LDL, Triglicéridos.
-    - Diagnóstico M139 (Artritis): Cubre Factor Reumatoideo, Creatinina.
-    - No cubre PSA, CA19-9, Electroforesis de Proteínas si no hay diagnóstico relacionado con cáncer.
+    - Diagnóstico E11 (Diabetes): Cubre GLUCOSA EN AYUNAS, HEMOGLOBINA GLICOSILADA, MICROALBUMINURIA, CREATININA.
+    - Diagnóstico N18 (Insuficiencia Renal): Cubre CREATININA, UREA, MICROALBUMINURIA, ELECTROLITOS.
+    - Diagnóstico I10 (Hipertensión): Cubre CREATININA, GLUCOSA, COLESTEROL TOTAL (si hay factores de riesgo).
+    - Diagnóstico E782 (Hiperlipidemia): Cubre COLESTEROL TOTAL, COLESTEROL HDL, COLESTEROL LDL, TRIGLICÉRIDOS.
+    - Diagnóstico M139 (Artritis): Cubre FACTOR REUMATOIDEO CUANTITATIVO, CREATININA.
+    - Diagnóstico A09 (Gastroenteritis): Cubre BIOMETRÍA HEMÁTICA, ELECTROLITOS.
+    - No cubre PSA, CA19-9, ELECTROFORESIS DE PROTEÍNAS si no hay diagnóstico relacionado con cáncer.
+    - Pruebas de embarazo (e.g., BETA HCG) nunca se cubren, ya que son para descartar.
 
     Ahora, audita esta solicitud:
     Paciente: {paciente}
@@ -167,7 +172,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": "Eres un auditor médico experto."},
+            {"role": "system", "content": "Eres un auditor médico experto con conocimiento de códigos CIE10 y nombres completos de exámenes médicos."},
             {"role": "user", "content": prompt}
         ],
         max_tokens=1000,
