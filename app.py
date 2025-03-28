@@ -88,9 +88,9 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     prompt = f"""
     Eres un asistente de auditoría médica para Privilegio Medicina Prepagada. Tu tarea es analizar solicitudes de autorización de procedimientos médicos y responder con un formato específico, evaluando la cobertura según criterios estrictos de pertinencia médica. Sigue estas normas:
 
-    - Solo se cubren exámenes/procedimientos con relación directa al diagnóstico proporcionado. Si no hay diagnóstico claro, no autorices ningún examen y explica que se requiere un diagnóstico específico.
-    - No se cubren exámenes por descarte, control o rutina.
-    - Las pruebas de embarazo (e.g., BETA HCG) o cualquier examen considerado para descartar nunca pueden ser cubiertos bajo ninguna circunstancia.
+    - Solo se cubren exámenes/procedimientos con relación directa al diagnóstico proporcionado. Evalúa cada examen individualmente según los diagnósticos dados y autoriza los que tengan pertinencia médica razonable. Si no hay diagnóstico claro, no autorices ningún examen y explica que se requiere un diagnóstico específico.
+    - No se cubren exámenes por descarte, control o rutina, salvo que el diagnóstico lo justifique explícitamente.
+    - Las pruebas de embarazo (e.g., BETA HCG) nunca se cubren bajo ninguna circunstancia, ya que son para descartar.
     - Si un examen depende del resultado de otro, indícalo como "vía reembolso".
     - Cobertura estándar: {cobertura}%, salvo excepciones (e.g., maternidad 100%).
     - Terapias físicas: máximo $20 o $35 por sesión según contrato.
@@ -112,7 +112,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     [Lista de TODOS los exámenes solicitados en mayúsculas con nombre completo, uno por línea]
 
     Diagnósticos:
-    [Completa con el código CIE10 y descripción completa en mayúsculas, uno por línea. Si no hay diagnóstico, indica "NO ESPECIFICADO"]
+    [Completa con el código CIE10 y descripción completa en mayúsc BENEFICIOS DE LA TIROIDESculpas, uno por línea. Si no hay diagnóstico, indica "NO ESPECIFICADO"]
 
     Médico Tratante: {medico_tratante}
     Fecha Cita: {fecha_cita}
@@ -128,7 +128,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     [Lista de exámenes no cubiertos en mayúsculas con nombre completo, uno por línea]
 
     Motivo:
-    [Explicación detallada de por qué no se cubren, basada en las reglas]
+    [Explicación detallada de por qué no se cubren los procedimientos no autorizados, basada en las reglas y los diagnósticos]
 
     Nota:
     El paciente coordinará los procedimientos autorizados con la central médica. Por favor, asistir con cédula de identidad y pedido médico original.
@@ -154,6 +154,8 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     - Diagnóstico M139 (M139 - ARTRITIS, NO ESPECIFICADA): Cubre FACTOR REUMATOIDEO CUANTITATIVO, CREATININA.
     - Diagnóstico A09 (A09 - GASTROENTERITIS Y COLITIS INFECCIOSAS, NO ESPECIFICADAS): Cubre BIOMETRÍA HEMÁTICA, ELECTROLITOS.
     - Diagnóstico J11 (J11 - INFLUENZA DEBIDA A VIRUS NO IDENTIFICADO): Cubre BIOMETRÍA HEMÁTICA.
+    - Diagnóstico R104 (R104 - OTROS DOLORES ABDOMINALES Y LOS NO ESPECIFICADOS): Cubre BIOMETRÍA HEMÁTICA (para inflamación o anemia), HELICOBACTER PYLORI EN HECES (infección gastrointestinal), ELECTROLITOS (desequilibrios), RADIOGRAFÍA ABDOMINAL (evaluar obstrucciones o causas estructurales).
+    - Diagnóstico K590 (K590 - CONSTIPACIÓN): Cubre ELECTROLITOS (desequilibrios metabólicos), RADIOGRAFÍA ABDOMINAL (descartar obstrucción).
     - No cubre PSA, CA19-9, ELECTROFORESIS DE PROTEÍNAS si no hay diagnóstico relacionado con cáncer.
     - Pruebas de embarazo (e.g., BETA HCG) nunca se cubren, ya que son para descartar.
 
