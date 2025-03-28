@@ -20,7 +20,6 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'x7k9p!m2q$z')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///auditorias.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# Usar carpeta temporal para PDFs (efímera en Render gratuito)
 app.config['PDF_FOLDER'] = os.getenv('PDF_FOLDER', '/tmp/pdfs')
 
 db = SQLAlchemy(app)
@@ -138,7 +137,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     Saludos cordiales,
     Privilegio Medicina Prepagada
     PRIMEPRE S.A.
-    DIR: Juan León Mera N21-291 y Jerónimo Carrión, Edificio Sevilla piso 7
+    DIR: Juan León Mera N21-291 y Jerónimo Carrión, Edificio Sevilla pisos 6, 7, 8 y 9
     E-MAIL: direccionmedica@privilegio.med.ec
     WEB: www.privilegio.med.ec
     QUITO – ECUADOR
@@ -188,7 +187,6 @@ def generar_pdf(auditoria):
         os.makedirs(pdf_folder, exist_ok=True)
     pdf_path = os.path.join(pdf_folder, f"autorizacion_{auditoria.id}.pdf")
 
-    # Generar el PDF siempre que se solicite (no confiamos en almacenamiento persistente)
     doc = SimpleDocTemplate(
         pdf_path,
         pagesize=letter,
@@ -333,19 +331,7 @@ def descargar_pdf(auditoria_id):
     auditoria = Auditoria.query.get_or_404(auditoria_id)
     if current_user.role != 'admin' and auditoria.usuario_id != current_user.id:
         return "No tienes permiso para descargar este archivo", 403
-    
-    # Regenerar el PDF cada vez si no existe (efímero en Render gratuito)
-    pdf_path = generar_pdf(auditoria)
-    auditoria.pdf_path = pdf_path
-    db.session.commit()
-    
-    return send_from_directory(
-        app.config['PDF_FOLDER'],
-        f"autorizacion_{auditoria_id}.pdf",
-        as_attachment=True,
-        mimetype='application/pdf',
-        attachment_filename=f"autorizacion_{auditoria_id}.pdf"
-    )
+    return send_from_directory(app.config['PDF_FOLDER'], f"autorizacion_{auditoria_id}.pdf", as_attachment=True)
 
 @app.route('/exportar_historial')
 @login_required
