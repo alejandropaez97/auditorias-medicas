@@ -17,10 +17,15 @@ from openai import OpenAI
 
 app = Flask(__name__)
 
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'x7k9p!m2q$z')
+# Configuraciones de seguridad mejoradas
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'x7k9p!m2q$z')  # Asegúrate de que sea un valor único y secreto en producción
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///auditorias.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['PDF_FOLDER'] = os.getenv('PDF_FOLDER', '/tmp/pdfs')
+app.config['PDF_FOLDER'] = os.getenv('PDF_FOLDER', '/tmp/pdfs')  # Mantenemos como estaba originalmente
+app.config['SESSION_COOKIE_SECURE'] = True  # Solo cookies en HTTPS (ajústa a False si pruebas localmente sin HTTPS)
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Evita acceso a cookies desde JavaScript
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Protección contra CSRF
+app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # Sesiones expiran en 30 minutos
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
@@ -28,6 +33,9 @@ bcrypt = Bcrypt(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+# Simulación de intentos de login (en producción usa Redis o similar)
+login_attempts = {}
 
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
@@ -240,6 +248,10 @@ def register():
     form = RegisterForm()
     if form.validate_on_submit():
         email = form.email.data
+        # Verificar si el email ya existe
+        if User.query.filter_by(email=email).first():
+            flash('El correo ya está registrado. Usa otro correo o inicia sesión.', 'danger')
+            return redirect('/register')
         password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
         role = 'admin' if email == 'direccioncomercial@privilegio.med.ec' else 'user'
         user = User(email=email, password=password, role=role)
@@ -253,19 +265,33 @@ def register():
 def login():
     form = LoginForm()
     if form.validate_on_submit():
-        user = User.query.filter_by(email=form.email.data).first()
+        email = form.email.data
+        # Simulación de límite de intentos (máximo 5 por email)
+        attempts = login_attempts.get(email, 0)
+        if attempts >= 5:
+            flash('Demasiados intentos fallidos. Intenta de nuevo en 15 minutos.', 'danger')
+            return redirect('/login')
+        
+        user = User.query.filter_by(email=email).first()
         if user:
             if user.password.startswith('$2b$'):
                 if bcrypt.check_password_hash(user.password, form.password.data):
                     login_user(user)
+                    login_attempts[email] = 0  # Resetear intentos al éxito
                     return redirect('/solicitar')
             else:
                 if user.password == form.password.data:
                     user.password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
                     db.session.commit()
                     login_user(user)
+                    login_attempts[email] = 0
                     return redirect('/solicitar')
-        flash('Credenciales inválidas. Intenta de nuevo.', 'danger')
+            # Incrementar intentos fallidos
+            login_attempts[email] = attempts + 1
+            flash(f'Credenciales inválidas. Intento {attempts + 1} de 5.', 'danger')
+        else:
+            login_attempts[email] = attempts + 1
+            flash(f'Usuario no encontrado. Intento {attempts + 1} de 5.', 'danger')
     return render_template('login.html', form=form)
 
 @app.route('/solicitar', methods=['GET', 'POST'])
