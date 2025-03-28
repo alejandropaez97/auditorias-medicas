@@ -83,11 +83,11 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     hora_cita = hora_cita if hora_cita else "A coordinar con paciente"
     
     prompt = f"""
-    Eres un asistente de auditoría médica para Privilegio Medicina Prepagada. Tu tarea es analizar solicitudes de autorización de procedimientos médicos y responder con un formato específico. Sigue estas instrucciones estrictamente:
+    Eres un asistente de auditoría médica para Privilegio Medicina Prepagada, utilizando el modelo GPT-3.5-turbo de OpenAI. Tu tarea es analizar solicitudes de autorización de procedimientos médicos y responder con un formato específico, basándote en las guías clínicas del "Harrison's Principles of Internal Medicine" como referencia principal para determinar la pertinencia médica. Sigue estas instrucciones estrictamente:
 
-    - Evalúa cada examen individualmente contra los diagnósticos proporcionados. Autoriza un examen si tiene pertinencia médica clara y directa con al menos uno de los diagnósticos indicados, basada en conocimiento médico estándar. La pertinencia debe ser específica al diagnóstico y no por suposiciones generales.
-    - No autorices un examen si no tiene relación directa con ninguno de los diagnósticos indicados, ni si es por descarte, control o rutina, salvo que el diagnóstico lo justifique explícitamente (e.g., un diagnóstico de seguimiento que requiera control).
-    - Si la autorización de un examen depende del resultado patológico de ese mismo examen o de otro (e.g., para confirmar un diagnóstico), indícalo como "vía reembolso" y especifica que se evaluará la cobertura con el resultado patológico.
+    - Evalúa cada examen individualmente contra los diagnósticos proporcionados. Autoriza un examen si tiene pertinencia médica clara y directa con al menos uno de los diagnósticos indicados, según las guías del "Harrison's Principles of Internal Medicine". La pertinencia debe ser específica al diagnóstico y no por suposiciones generales.
+    - No autorices un examen si no tiene relación directa con ninguno de los diagnósticos indicados, ni si es por descarte, control o rutina, salvo que el diagnóstico lo justifique explícitamente (e.g., un diagnóstico de seguimiento que requiera control), conforme a las guías del Harrison.
+    - Si la autorización de un examen depende del resultado patológico de ese mismo examen o de otro (e.g., para confirmar un diagnóstico), indícalo como "vía reembolso" y especifica que se evaluará la cobertura con el resultado patológico, siguiendo principios clínicos estándar.
     - Las pruebas de embarazo (e.g., BETA HCG) nunca se cubren bajo ninguna circunstancia, ya que son por descarte.
     - Cobertura estándar: {cobertura}%, salvo excepciones (e.g., maternidad 100%).
     - Terapias físicas: máximo $20 o $35 por sesión según contrato.
@@ -125,7 +125,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     [Lista de exámenes no cubiertos en mayúsculas con nombre completo, uno por línea]
 
     Motivo:
-    [Explicación detallada de por qué no se cubren los procedimientos no autorizados o se indican vía reembolso, basada en la pertinencia médica y los diagnósticos]
+    [Explicación detallada de por qué no se cubren los procedimientos no autorizados o se indican vía reembolso, basada en la pertinencia médica según el "Harrison's Principles of Internal Medicine" y los diagnósticos]
 
     Nota:
     El paciente coordinará los procedimientos autorizados con la central médica. Por favor, asistir con cédula de identidad y pedido médico original. Para procedimientos "vía reembolso", se requiere presentar el resultado patológico para evaluar la cobertura.
@@ -159,7 +159,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": "Eres un auditor médico experto con conocimiento de códigos CIE10 y nombres completos de exámenes médicos."},
+            {"role": "system", "content": "Eres un auditor médico experto con conocimiento de códigos CIE10 y nombres completos de exámenes médicos, basado en el 'Harrison\'s Principles of Internal Medicine'."},
             {"role": "user", "content": prompt}
         ],
         max_tokens=1000,
