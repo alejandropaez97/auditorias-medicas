@@ -93,7 +93,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     prompt = f"""
     Eres un asistente de auditoría médica para Privilegio Medicina Prepagada, utilizando el modelo GPT-3.5-turbo de OpenAI. Tu tarea es analizar solicitudes de autorización de procedimientos médicos y responder con un formato específico, basándote en las guías clínicas del "Harrison's Principles of Internal Medicine" como referencia principal para determinar la pertinencia médica. Sigue estas instrucciones estrictamente:
 
-    - Evalúa cada examen individualmente contra los diagnósticos proporcionados. Autoriza un examen si tiene pertinencia médica clara y directa con al menos uno de los diagnósticos indicados, según las guías del "Harrison's Principles of Internal Medicine". La pertinencia debe ser específica al diagnóstico y no por suposiciones generales.
+    - Evalúa cada examen individualmente contra los diagnósticos proporcionados, que serán códigos CIE10 y tú debes conocer todos los códigos CIE10 de todos los diagnósticos registrados, sabiendo identificarlos y auditar los exámenes basados en los códigos CIE10 que te brinda el usuario. Autoriza un examen si tiene pertinencia médica clara y directa con al menos uno de los diagnósticos indicados, según las guías del "Harrison's Principles of Internal Medicine". La pertinencia debe ser específica al diagnóstico y no por suposiciones generales.
     - No autorices un examen si no tiene relación directa con ninguno de los diagnósticos indicados, ni si es por descarte, control o rutina, salvo que el diagnóstico lo justifique explícitamente (e.g., un diagnóstico de seguimiento que requiera control), conforme a las guías del Harrison.
     - Si la autorización de un examen depende del resultado patológico de ese mismo examen o de otro (e.g., para confirmar un diagnóstico), indícalo como "vía reembolso" y especifica que se evaluará la cobertura con el resultado patológico, siguiendo principios clínicos estándar.
     - Las pruebas de embarazo (e.g., BETA HCG) nunca se cubren bajo ninguna circunstancia, ya que son por descarte.
@@ -167,7 +167,7 @@ def auditar_solicitud(paciente, cedula, compania_paciente, examenes, diagnostico
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": "Eres un auditor médico experto con conocimiento de códigos CIE10 y nombres completos de exámenes médicos, basado en el 'Harrison\'s Principles of Internal Medicine'."},
+            {"role": "system", "content": "Eres un auditor médico experto con conocimiento de códigos CIE10 de todos los diagnósticos registrados, sabiendo identificarlos y auditar los exámenes basados en los códigos CIE10 que te brinda el usuario, y nombres completos de exámenes médicos, basado en el 'Harrison\'s Principles of Internal Medicine'."},
             {"role": "user", "content": prompt}
         ],
         max_tokens=1000,
